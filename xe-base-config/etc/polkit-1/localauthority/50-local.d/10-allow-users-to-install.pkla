@@ -1,0 +1,13 @@
+[Untrusted Install]
+Identity=unix-group:powerusers
+Action=org.freedesktop.packagekit.package-install
+ResultyAny=no
+ResultInactive=no
+ResultActive=auth_self
+
+[Untrusted Update]
+Identity=unix-group:powerusers
+Action=org.debian.apt.update-cache
+ResultAny=no
+ResultInactive=no
+ResultActive=yes

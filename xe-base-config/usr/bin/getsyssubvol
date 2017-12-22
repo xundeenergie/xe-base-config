@@ -1,0 +1,65 @@
+#!/usr/bin/python3 -u
+from __future__ import (absolute_import, division, print_function,
+        unicode_literals)
+#from builtins import *
+
+import sys
+import subprocess
+import socket
+import os
+import errno
+import re
+
+__author__ = "Jakobus Schuerz <jakobus.schuerz@gmail.com>"
+__version__ = "0.01.0"
+
+
+class MountInfo():
+    def __init__(self,mountinfo='/proc/self/mountinfo'):
+        self.mi = dict()
+        mif = open(mountinfo)
+        try:
+            for line in mif:
+                if len(line.split()) == 10:
+                    a,b,c,relpath,mntp,e,typ,fstype,dev,opts = line.split()
+                else:
+                    a,b,c,relpath,mntp,d,e,typ,fstype,dev,opts = line.split()
+                mntp = mntp.replace('\\040',' ')
+                self.mi[mntp] = dict()
+                self.mi[mntp]['relpath'] = relpath
+                self.mi[mntp]['typ'] = typ
+                self.mi[mntp]['fstype'] = fstype
+                self.mi[mntp]['dev'] = dev
+                self.mi[mntp]['opts'] = opts
+        finally:
+            mif.close()
+            
+    def __check(self,mountpoint,attribute):
+        if not mountpoint[0] == '/': 
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), mountpoint) 
+        mp = mountpoint.rstrip('/')if len(mountpoint) > 1 else mountpoint
+        rec = False
+        rep = ''
+        if os.path.exists(mp):
+            try:
+                rp = self.mi[mp][attribute]
+                rep = mp
+            except:
+                rec = True
+                a,rep,rp = self.__check(os.path.dirname(mp),attribute)
+            return [rec,rep,rp]
+        else:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), mp) 
+
+    def relpath(self,mountpoint='/'):
+        rec,rep,mp = self.__check(mountpoint,'relpath')
+        if rec: return mp.replace(rep,'') + mountpoint
+        return mp
+
+if __name__ == '__main__':
+    MI = MountInfo()
+    try:
+        p=sys.argv[1]
+    except:
+        p='/'
+    print(MI.relpath(p) )

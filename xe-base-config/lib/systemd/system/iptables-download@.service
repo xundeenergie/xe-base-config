@@ -1,0 +1,11 @@
+[Unit]
+Description=Download china-ip-addresses to block with iptables in iplist %i
+OnFailure=status-email-root@%n.service
+Before=iptables.service
+Wants=iptables.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/etc/
+ExecStartPre=/usr/bin/nm-updatecheck.py -G -c
+ExecStart=/usr/lib/systemd/scripts/update-blacklist.sh

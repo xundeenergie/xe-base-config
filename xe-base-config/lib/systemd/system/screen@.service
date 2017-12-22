@@ -1,0 +1,17 @@
+[Unit]
+Description=screen for user %i
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i
+ExecStartPre=-/usr/bin/xdg-user-dirs-update
+ExecStart=/usr/bin/screen -DmS autoscreen_%i
+#ExecStartPost=/bin/sh -c '/bin/systemctl set-environment --user XDG_RUNTIME_DIR=/run/user/$(/usr/bin/id -u %i)'
+ExecStop=/usr/bin/screen -S autoscreen_%i -X quit
+#Restart=on-success
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

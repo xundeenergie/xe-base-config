@@ -1,0 +1,3 @@
+#export GDK_CORE_DEVICE_EVENTS=1
+export NO_AT_BRIDGE=1
+

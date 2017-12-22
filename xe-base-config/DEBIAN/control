@@ -1,0 +1,14 @@
+Package: xe-base-config
+Version: 0.1.10
+Section: misc
+Priority: extra
+Architecture: all
+Maintainer: Jakobus Schürz <jakob@xundeenergie.at>
+Homepage: http://github.com/xundeenergie/xe-base-config
+Provides: xe-base-config
+Depends: console-setup, openssl, xe-ca-cert, ca-certificates, vim, tzdata, nmap, htop 
+Recommends: vim-addon-manager, tree, htop, systemd-alt-cron
+Conflicts: my-config, my-services
+Description: Xunde Energie base-configurations for headless systems 
+ Special configurations and packages for a base configuration for headless systems
+ PS1, bash-aliases, several system-tools (tree, htop,...)

@@ -1,0 +1,159 @@
+#!/bin/bash
+
+# Dieses Skript stellt div. Funktionen für meine Skripte zur Verfügung.
+# Dieses Skript wird in anderen Skripten gesourced
+# Bei Fragen: jakobus.schuerz@gmail.com
+
+# sendet an alle graphisch angemeldeten User eine Nachricht an den notify-daemon
+# 
+# folgende Variabeln müssen gesetzt werden:
+# quiet=false
+# vlevel=0
+# DRY=false
+# LOGGING=[file|stdout|journald|syslog]
+LOGGING=journald
+# LOGFILE=/path/to/logfile
+
+# Log to syslog or journald, defaults to journald
+
+cmdl="$@"
+
+case $LOGGING in
+   file)
+     ;;
+   stout)
+     LOGFILE=/dev/null
+     ;;
+   journald)
+     LOGFILE=/dev/null
+     #[ -x /usr/bin/systemd-cat ] && LOGGER="/usr/bin/systemd-cat -t "
+     ;;
+   syslog)
+     LOGFILE=/dev/null
+     [ -x /usr/bin/logger ] && LOGGER="/usr/bin/logger -t "
+     ;;
+   *)
+     LOGFILE=/dev/null
+     [ -z "$LOGGER" ] && LOGGER="/usr/bin/tee /dev/null"
+     ;;
+esac
+
+#[ -x /usr/bin/logger ] && LOGGER="/usr/bin/logger -t "
+#[ -x /usr/bin/systemd-cat ] && LOGGER="/usr/bin/systemd-cat -t "
+#[ -z "$LOGGER" ] && LOGGER="/usr/bin/tee /dev/null"
+export LOGGER
+
+dbusnotifying () {
+
+export ICON=/usr/share/icons/gnome/32x32/actions/gnome-run.png
+
+case $1 in
+	-i) shift; export ICON="$1"; shift;;
+esac
+
+export message="$@";
+#who|awk '$NF ~ /:/{print $1}'|uniq|while read user
+loginctl list-users|awk '$1 ~ /[0-9]*/ {print $2}'|sed '/^$/d;/USER/d;/user/d'|while read user
+do
+	pids=`pgrep -u $user`
+	for pid in $pids; do
+		# find DBUS session bus for this session
+		grep -z DBUS_SESSION_BUS_ADDRESS \
+	 	/proc/$pid/environ 2>/dev/null | sed -e 's/DBUS_SESSION_BUS_ADDRESS=//'
+		echo
+	done|sort -u|uniq|sed -e '/^$/d'|while read DBUS_SESSION_BUS_ADDRESS
+	do	# use it
+		export DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
+		[ -n $DBUS_SESSION_BUS_ADDRESS ] || continue
+		if [ x"$UID" == "x" ] ;then UID=0; fi
+		if [ `echo $UID` -gt 0 ];
+		then
+			/usr/bin/notify-send -t 3000 -i "$ICON" "`basename "/"$0|sed -e 's/^-//'`" "$message"
+		else
+#echo x$UID
+			#su $user -c "notify-send -t 2000 -i "$ICON" '`basename "/"$0|sed -e 's/^-//'`' '$message' 2>/dev/null" 2>/dev/null
+			sudo -u $user /usr/bin/notify-send -t 2000 -i $ICON "`basename "/"$0|sed -e 's/^-//'`" "$message"
+		fi
+		test $? -eq 0  && break
+		#[ -z $DBUS_SESSION_BUS_ADDRESS ] || break
+		unset DBUS_SESSION_BUS_ADDRESS
+	done
+done
+}
+
+
+
+# This function controls the output and debuglevel. It is used instead of "echo" in the skript.
+# You can set vlevels (vlevel=0 is default) and some minimal output is given. 
+# You can also give -q (quiet), so regulary all messages are gone on terminal (they go to logfile).
+# The skript returns only an exit-code. exit 0 is success, exit > 0, there was some failure.
+
+function Debug () {
+    case $1 in
+	[0-9]*) V=$1;shift;;
+	*) V=0;;
+    esac
+
+    if $quiet; then
+	[[ $V -lt 1 ]] && printf "[II] ($$)	$*\n" || :
+    else
+	if [ $V -le $vlevel ]; then
+          printf "[II] ($$:$loop)	$*\n"
+        fi
+    fi
+}
+
+# Decides to run a command, or to put out the command itself to the terminal (dry-run)
+function Run () {
+    if $DRY ; then
+        echo "[XX]  $*"
+        return 0
+    fi
+
+    if $quiet ; then
+        #eval "$@" >> ${LOGFILE} 2>&1 ||let err++ 
+        #eval "$@" >> ${LOGFILE} 2>&1  
+        eval "$@" >/dev/null 2>&1
+	#return $?
+	#return
+    else
+        [ $vlevel -ge 2 ] && echo "[XX] $@" |tee -a ${LOGFILE}
+        #[ $vlevel -ge 2 ] && echo "[XX] $@" |systemd-cat -t "$0"
+        #   eval "$@" 2>&1 
+
+        if [ $vlevel -ge 1 ] ;then
+           #eval "$@" 2>&1 |tee -a ${LOGFILE} || { let err++; }
+           eval "$@" 2>&1 
+        else
+           #eval "$@" >> ${LOGFILE} 2>&1 || { let err++; }
+           eval "$@" 
+        fi
+	#return $?
+	#return
+    fi
+}
+
+function die () { 
+   msg=${1:-} # don't loop on ERR  
+   trap '' ERR
+
+   [ -n "${lock}" ] && echo "lock ${lock}"
+   #[ -z "${lock}" ] && { if [ -e $lock ] ;then rm $lock ;fi; }
+   
+   echo "$msg" >&2 
+   echo >&2
+   
+   # This is a fancy shell core dumper 
+   if echo $msg | grep -q 'Error line .* with status'; then 
+      line=`echo $msg | sed 's/.*Error line \(.*\) with status.*/\1/'`
+      #echo " cmdl: $cmdl" >&2
+      echo " DIE: Code dump:" >&2 
+      nl -ba $0 | grep -5 "\b$line\b" >&2 
+   fi
+   
+   return 255
+}
+
+
+trap 'die "Error line $LINENO with status $?"' ERR
+

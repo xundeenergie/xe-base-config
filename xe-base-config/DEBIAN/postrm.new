@@ -1,0 +1,107 @@
+#! /bin/sh
+
+set -e
+
+# In case this system is running systemd, we make systemd reload the unit files
+# to pick up changes.
+if [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+
+
+# For user-services only, for earch target an extra section! for system-services user deb-systemd*
+# put in full unit-name. for example "mkbackup@hourly.service"
+SERVICES="mpd.socket pulseaudio.socket mpDris2.service"
+USERLOCS="/etc/systemd/user/ /usr/lib/systemd/user/"
+
+#[ -e /etc/systemd/user/default.target.wants/ ] || mkdir -p /etc/systemd/user/default.target.wants/
+case "$1" in
+    purge)
+        for SERVICE in $SERVICES; do
+            UNIT_NAME=$(echo $SERVICE|sed -e 's/\@.*\.\([a-z][a-z]*\)$/@.\1/')
+            for loc in $USERLOCS;do
+                if [ -e "${loc}${UNIT_NAME}" ]; then
+                    UNIT_LOC="$loc"
+                    break
+                fi
+            done
+            
+            for TARGET in $(gawk -F "=" '\
+                    $1 ~ /WantedBy/ && $1 !~ /^#/{split($2,wants," ")} \
+                    $1 ~ /RequiredBy/ && $1 !~ /^#/{split($2,requ," ")} \
+                    END{for (w in wants){print wants[w]".wants"};for (r in requ){print requ[r]".requires"}}' "${UNIT_LOC}${UNIT_NAME}");do
+                [ -e "/etc/systemd/user/${SERVICE}" ] || rm -rf "/etc/systemd/user/${SERVICE}"
+                [ -e "/etc/systemd/user/${TARGET}/${SERVICE}" ] || rm -rf "/etc/systemd/user/${TARGET}/${SERVICE}"
+            done
+        done
+	#rm -rf /etc/systemd/user/cups-fuse.service
+        #rm -rf /etc/systemd/user/default.target.wants/cups-fuse.service
+	;;
+    abort-upgrade|upgrade)
+        ;;
+    failed-upgrade|abort-install|disappear)
+        ;;
+    remove)
+        for SERVICE in $SERVICES; do
+            UNIT_NAME=$(echo $SERVICE|sed -e 's/\@.*\.\([a-z][a-z]*\)$/@.\1/')
+            for loc in $USERLOCS;do
+                if [ -e "${loc}${UNIT_NAME}" ]; then
+                    UNIT_LOC="$loc"
+                    break
+                fi
+            done
+            for TARGET in $(gawk -F "=" '\
+                    $1 ~ /WantedBy/ && $1 !~ /^#/{split($2,wants," ")} \
+                    $1 ~ /RequiredBy/ && $1 !~ /^#/{split($2,requ," ")} \
+                    END{for (w in wants){print wants[w]".wants"};for (r in requ){print requ[r]".requires"}}' "${UNIT_LOC}${UNIT_NAME}");do
+                [ -e "/etc/systemd/user/${TARGET}" ] || mkdir -p "/etc/systemd/user/${TARGET}"
+                ln -sf "/dev/null" "/etc/systemd/user/${TARGET}/${SERVICE}"
+            done
+        done
+        for i in hplip-systray.desktop at-spi-dbus-bus.desktop zeitgeist-datahub.desktop; do
+            [ -e "/etc/xdg/${i}.orig" ] && mv "/etc/xdg/${i}.orig" "/etc/xdg/autostart/${i}" 
+        done
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 0
+        ;;
+esac
+
+# System-Services:
+# put in full unit-name. for example "mkbackup@hourly.service"
+SERVICES="
+adblock-hostupdate.service
+iptables.service
+iptables@blacklist.service
+rkhunter-check.service
+rkhunter-update.service
+connection-online.target
+iptables-download@blacklist.service
+iptables.service
+"
+
+case "$1" in
+    purge)
+	if [ -x "/usr/bin/deb-systemd-helper-new" ]; then
+		deb-systemd-helper-new purge $SERVICES >/dev/null
+		deb-systemd-helper-new unmask $SERVICES >/dev/null
+	fi
+        ;;
+    abort-upgrade)
+        ;;
+    remove)
+        if [ -x "/usr/bin/deb-systemd-helper-new" ]; then
+                deb-systemd-helper-new mask $SERVICES >/dev/null
+        fi
+        ;;
+    upgrade|failed-upgrade|abort-install|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 0
+        ;;
+
+esac
