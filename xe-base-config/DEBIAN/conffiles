@@ -23,8 +23,6 @@
 ./usr/local/bin/xdg-email
 ./usr/local/bin/functions-jakob
 ./usr/local/bin/apt-import-pubkey
-./lib/systemd/system/connection-online.target
-./lib/systemd/system/connection-online@.target
 ./lib/systemd/system/iptables.service
 ./lib/systemd/system/iptables@.service
 ./lib/systemd/system/iptables-download@.service
